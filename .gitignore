@@ -1,0 +1,8 @@
+.DS_Store
+.cache
+lib/AlphaTree.pyc
+lib/__init__.pyc
+test/.cache
+test/__pycache__
+test/test_alpha_tree.pyc
+traces
