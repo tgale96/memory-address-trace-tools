@@ -10,7 +10,7 @@ import h5py as h5
 import numpy as np
 
 # TODO:
-# 1. Generator program (generate list of numbers 1- 2**32/blocksize & remove when selected for unique blocks)
+# 1. Generator program
 # 1.5 additions to AlphaTree to allow for keeping track of access history without counting, & selecting blocks baed on alphas
 # 2. STL printing callback & error handling for incorrect input
 # 3. Interface & usage info
@@ -158,7 +158,8 @@ def GenerateSyntheticTrace(traceFile, traceLength, appProfiles, weights=[], trac
             accessType = 1 # store
 
         # select 4-byte word address based on alpha values
-                
+        # for each access, pass (memAddress, reuseDistance) into tree & select bit by bit waht word is accessed
+        # return 4-byte word        
 #
 ## main function
 #

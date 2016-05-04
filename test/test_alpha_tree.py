@@ -193,6 +193,97 @@ def test_smaller_root_size():
     sol[2:5, 1] += 1
     
     assert np.array_equal(a.reuseCount, sol)
+
+def test_load_alphas():
+    """ tests AlphaTree::LoadAlphas to ensure values are stored 
+        correctly"""
+    # init AlphaTree
+    a = AlphaTree()
+    
+    test_alphas = np.arange(7, dtype = np.float)
+    test_alphas /= 7.0
+    
+    a.LoadAlphas(test_alphas)
+    
+    assert np.array_equal(test_alphas, a.reuseCount[:,1])
+    assert np.array_equal(1-test_alphas, a.reuseCount[:,0])
+
+def test_generate_access():
+    """ test AlphaTree::GenerateAccess to ensure accesses are tracked
+        correctly and ouput is generated correctly based on the path
+        take when traversing the tree from root to leaf"""
+    # init AlphaTree
+    a = AlphaTree()
+    
+    # load alpha values
+    test_alphas = np.arange(7, dtype = np.float)
+    test_alphas /= 7.0
+    
+    a.LoadAlphas(test_alphas)
+    
+    # test first access
+    test = a.GenerateAccess()
+    
+    # traverse tree to find theoretical output
+    node = 0
+    block = 512
+    results = 0
+    while a.GetRightChild(node) < len(a.tree):
+        if a.tree[a.GetLeftChild(node)]:
+            node = a.GetLeftChild(node)
+        else:
+            node = a.GetRightChild(node)
+            results = results | (block >> 1)
+        block = block >> 1
+    
+    # compare results
+    assert test == results
+    
+    # test second access
+    test = a.GenerateAccess()
+    
+    # traverse tree to find theoretical output
+    node = 0
+    block = 512
+    results = 0
+    while a.GetRightChild(node) < len(a.tree):
+        if a.tree[a.GetLeftChild(node)]:
+            node = a.GetLeftChild(node)
+        else:
+            node = a.GetRightChild(node)
+            results = results | (block >> 1)
+        block = block >> 1
+
+    # compare results
+    assert test == results
+    
+    # load different distribution
+    test_alphas = np.ones(7, dtype = np.float)
+    test_alphas /= 2
+    
+    a.LoadAlphas(test_alphas)
+    
+    # test 3rd access
+    test = a.GenerateAccess()
+    
+    # traverse tree to find theoretical output
+    node = 0
+    block = 512
+    results = 0
+    while a.GetRightChild(node) < len(a.tree):
+        if a.tree[a.GetLeftChild(node)]:
+            node = a.GetLeftChild(node)
+        else:
+            node = a.GetRightChild(node)
+            results = results | (block >> 1)
+        block = block >> 1
+
+    # compare results
+    assert test == results
+
+    
+    
+    
     
     
     

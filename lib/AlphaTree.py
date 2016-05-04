@@ -41,8 +41,7 @@ class AlphaTree:
         self.tree = np.zeros(rootSize / 2 - 1, dtype = np.bool)
         
         # reuse counters for each level
-        self.reuseCount = np.zeros((self.height, 2), dtype = np.float)
-
+        self.reuseCount = np.zeros((self.height, 2), dtype = np.float) 
     
     def GetChild(self, parent, side):
         """ GetChild: returns the identifier of the desired child in tree
@@ -141,3 +140,73 @@ class AlphaTree:
 
         # handle next block        
         self.updateTree(memAddress, usedSubset, blockSize >> 1)
+    
+    def LoadAlphas(self, alphaValues):
+        """ LoadAlphas: loads array of alpha values into self.alphas """
+        self.reuseCount[:,1] = alphaValues
+        self.reuseCount[:,0] = (1 - alphaValues)
+        
+    def GenerateAccess(self):
+        """ GenerateAccess: selects 4-byte word to access based on the previous
+            accesses and the alpha values stored in self.alphas
+            
+            return: bottom N bits to append to block address"""
+        return self.SelectWord(0, self.rootSize)
+    
+    def SelectWord(self, nodeID, blockSize):
+        """ SelectWord: iterates through tree to select 4-byte word to access
+        
+            args:
+                - nodeID: ID of the current node
+                - blockSize: subset size represented by this tree level"""
+        # if we reached end of tree        
+        if blockSize == 4:
+            return 0
+        
+        # get left and right children
+        leftChild = self.GetChild(nodeID, 0)
+        rightChild = self.GetChild(nodeID, 1)
+                
+        # get this blocks height in the tree
+        height = self.GetTreeLevel(blockSize)
+        
+        # if tree not previously accessed
+        if not(self.tree[leftChild] or self.tree[rightChild]):
+            # select from uniform distribution
+            subsetIndex = np.random.choice(2)
+            usedSubset = self.GetChild(nodeID, subsetIndex)
+            
+            # mark this subset as used
+            self.tree[usedSubset] = True
+            
+            # return appropriate bit
+            return self.SelectWord(usedSubset, blockSize >> 1) \
+                | (subsetIndex * (blockSize >> 1))
+                
+        # else, whether to reuse subset or not
+        reuse = np.random.choice(2, p = self.reuseCount[height,:])
+        
+        # identify previously accessed child
+        prevSubset = leftChild
+        prevIndex = 0
+        if self.tree[rightChild]:
+            prevSubset = rightChild 
+            prevIndex = 1
+            
+        # update usage if necessary
+        if not reuse:
+            usedSubset = self.GetSibling(prevSubset)
+            
+            self.tree[usedSubset] = True
+            self.tree[prevSubset] = False
+            subsetIndex = (prevIndex+1) % 2
+        else:
+            subsetIndex = prevIndex
+            usedSubset = prevSubset
+
+        # return appropriate bit
+        return self.SelectWord(usedSubset, blockSize >> 1) \
+            | (subsetIndex * (blockSize >> 1))
+        
+        
+        
