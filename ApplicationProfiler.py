@@ -39,6 +39,7 @@ profiler options: \n\
 \t0x0000fc4e \n\n\
 Example configurations can be found in the \"examples\" directory"
 
+# TODO: fix regEx feature and lsMap (only works if groups are positioned correctly in regex)
 def GenerateApplicationProfile(traceFile, outputFile, alphaRatio = 0, blockSize = 512, regEx = None):
     """ GenerateApplicationProfile: this function operates as the main routine
         used to create an application profile from an input address & instruction
@@ -101,7 +102,7 @@ def GenerateApplicationProfile(traceFile, outputFile, alphaRatio = 0, blockSize 
     
     # list of load (read) proportions for each reuse distance
     loadProp = [0]
-    lsMap = {'r': 0, 'w':1}
+    lsMap = {'r': 0, 'w':1} 
     
     # list of AlphaTree objects to collect alpha values
     alphaTrees = [AlphaTree(blockSize)]
