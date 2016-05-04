@@ -5,7 +5,7 @@
     applicaiton
     
     author: Trevor Gale
-    date: 3.5.16"""
+    date: 3.3.16"""
 
 from lib.AlphaTree import AlphaTree
 import ConfigParser
@@ -199,6 +199,10 @@ def GenerateApplicationProfile(traceFile, outputFile, alphaRatio = 0, blockSize 
                 alphaTrees[i].reuseCount[:, 0] + alphaTrees[i].reuseCount[:, 1])
     
     """ structures stored in the profile:
+    
+        - blockSize: input argument value
+        
+        - alphaRatio: input argument value
         
         - reusePMF: probability mass function where the i-th index represents 
         the probability of reuse-distance = (i - 1) occuring. Index 0 indicates
@@ -229,6 +233,8 @@ def GenerateApplicationProfile(traceFile, outputFile, alphaRatio = 0, blockSize 
     
     # save application profile to file
     outputFile = h5.File(outputFile, 'w')
+    outputFile.create_dataset('blockSize', data = np.asarray(blockSize, dtype = np.int))
+    outputFile.create_dataset('alphaRatio', data = np.asarray(alphaRatio, dtype = np.float))
     outputFile.create_dataset('reusePMF', data = np.asarray(reusePMF, dtype = np.float))
     outputFile.create_dataset('loadProp', data = np.asarray(loadProp, dtype = np.float))
     outputFile.create_dataset('activityMarkov', data = activityMarkov)
@@ -251,11 +257,12 @@ if __name__ == "__main__":
         
         # pull arguments
         traceFile = config.get('profiler', 'traceFile')
-        outputFile = config.get('profiler', 'tracefile')
+        outputFile = config.get('profiler', 'outputFile')
         alphaRatio = int(config.get('profiler', 'alphaRatio'))
         blockSize = int(config.get('profiler', 'blockSize'))
         regEx = config.get('profiler', 'regEx')
         
+        # generate the profile
         GenerateApplicationProfile(traceFile, outputFile, alphaRatio, blockSize, regEx)
     
     except IOError as error:
