@@ -5,7 +5,7 @@
     applicaiton
     
     author: Trevor Gale
-    date: 4.14.16"""
+    date: 3.5.16"""
 
 from lib.AlphaTree import AlphaTree
 import ConfigParser
