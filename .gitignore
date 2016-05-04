@@ -6,3 +6,4 @@ test/.cache
 test/__pycache__
 test/test_alpha_tree.pyc
 traces
+profiles
