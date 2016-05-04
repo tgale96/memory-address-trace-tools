@@ -8,10 +8,36 @@
     date: 4.14.16"""
 
 from lib.AlphaTree import AlphaTree
-
+import ConfigParser
+from sys import argv
 import numpy as np
 import h5py as h5
 import re
+
+# usage string
+usage_info = "USAGE: python ApplicationProfiler.py <config_file> \n\
+config_file: file specifying the configuration for the application profiler\n\n\
+all options for profiler must be under header \"[profiler]\" \n\
+profiler options: \n\
+\t- traceFile: string indicating the name of the file that contains\n\
+\tthe trace to be analyzed (plain-text)\n\n\
+\t- outputFile: string indicating the name of the file to save the\n\
+\tapplication profile to (automatically appends \".h5\")\n\n\
+\t- alphaRatio: ratio of reuse_distances / alpha tree. This value\n\
+\taffects the number of seperate sets of alpha values that will be\n\
+\tcollected to represent the spatial locality of the application's\n\
+\tmemory reference stream. Smaller values have been shown to produce\n\
+\tmore accurate results, but at the cost of more memory usage and a\n\
+\tlarger characterization. The default value '0' indicates to use 1\n\
+\tset of alpha values for all reuse distances\n\n\
+\t- blockSize: size of the largest cache block to model(in bytes).\n\
+\tdefault is 512 bytes\n\n\
+\t- regEx: Python regular expression to use to pull memory accesses\n\
+\tthe trace. Must not match instruction lines in trace. Defaults to\n\
+\t<access_type>,<address>. Where access_type is either 'r' or 'w' and\n\
+\taddress is a 4 byte memory address in hexadecimal format e.g.\n\
+\t0x0000fc4e \n\n\
+Example configurations can be found in the \"examples\" directory"
 
 def GenerateApplicationProfile(traceFile, outputFile, alphaRatio = 0, blockSize = 512, regEx = None):
     """ GenerateApplicationProfile: this function operates as the main routine
@@ -27,7 +53,7 @@ def GenerateApplicationProfile(traceFile, outputFile, alphaRatio = 0, blockSize 
             filename)
             
             - alphaRatio: computed as reuse_distances / alpha tree. This value
-            affects the number of seperate sets of alpha valeus that will be
+            affects the number of seperate sets of alpha values that will be
             collected to represent the spatial locality of the application's
             memory reference stream. Smaller values have been shown to produce
             more accurate results, but at the cost of more memory usage and a
@@ -42,6 +68,12 @@ def GenerateApplicationProfile(traceFile, outputFile, alphaRatio = 0, blockSize 
             <access_type>,<address>. Where access_type is either 'r' or 'w' and
             address is a 4 byte memory address in hexadecimal format e.g. 
             0x0000fc4e"""
+    # validate inputs
+    if alphaRatio < 0:
+        raise ValueError("(in GenerateApplicationProfile) alphaRatio must be non-negative integer")
+        
+    if blockSize % 2 or blockSize < 8:
+        raise ValueError("(in GenerateApplicationProfile) blockSize must be power of 2 >= 8")
 
     # if 1 tree for all reuse distances
     if not alphaRatio:
@@ -204,18 +236,27 @@ def GenerateApplicationProfile(traceFile, outputFile, alphaRatio = 0, blockSize 
     outputFile.close()
     # TODO: test opening file to make sure structures are maintained
     
+#
+## main function
+#
+ 
 if __name__ == "__main__":
-    # TODO: add interface and validate input
-    # TODO: move validation inside function? Yes, so it can't be misued outside of this file
-#    alphaRatio = int(alphaRatio) # make sure input is integer
-#    if alphaRatio < 0:
-#        raise ValueError("(in GenerateApplicationProfile) alphaRatio must be non-negative integer")
-#        
-#    if blockSize % 2 or blockSize < 8: # validate blocksize
-#        raise ValueError("(in AlphaTree.__init__) rootSize must be power of 2 >= 8")
-
     try:
-        GenerateApplicationProfile("traces/testTrace.txt", "testProfile", 1)
+        if len(argv) != 2:
+            raise IndexError("Invalid number of arguments. Only config file should be specified")
+            
+        # setup config parser with default args
+        config = ConfigParser.RawConfigParser({'alphaRatio': 0, 'blockSize': 512, 'regEx': None})
+        config.read(argv[1])
+        
+        # pull arguments
+        traceFile = config.get('profiler', 'traceFile')
+        outputFile = config.get('profiler', 'tracefile')
+        alphaRatio = int(config.get('profiler', 'alphaRatio'))
+        blockSize = int(config.get('profiler', 'blockSize'))
+        regEx = config.get('profiler', 'regEx')
+        
+        GenerateApplicationProfile(traceFile, outputFile, alphaRatio, blockSize, regEx)
     
     except IOError as error:
         print "IOError: " + str(error)
@@ -225,4 +266,17 @@ if __name__ == "__main__":
         
     except re.error as error:
         print "Invalid regEx: " + str(error)
+        
+    except ConfigParser.NoOptionError as error:
+        print "Invalid Args: " + str(error) + "\n"
+        print usage_info
+    
+    except ConfigParser.NoSectionError as error:
+        print "Invalid Config: " + str(error) + "\n"
+        print usage_info
+    
+    except IndexError as error:
+        print "IndexError: " + str(error) + "\n"
+        print usage_info
+    
             
