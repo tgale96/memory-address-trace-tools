@@ -233,14 +233,13 @@ def GenerateApplicationProfile(traceFile, outputFile, alphaRatio = 0, blockSize 
     
     # save application profile to file
     outputFile = h5.File(outputFile, 'w')
-    outputFile.create_dataset('blockSize', data = np.asarray(blockSize, dtype = np.int))
-    outputFile.create_dataset('alphaRatio', data = np.asarray(alphaRatio, dtype = np.float))
+    outputFile.create_dataset('blockSize', data = blockSize, dtype = np.int)
+    outputFile.create_dataset('alphaRatio', data = alphaRatio, dtype = np.float)
     outputFile.create_dataset('reusePMF', data = np.asarray(reusePMF, dtype = np.float))
     outputFile.create_dataset('loadProp', data = np.asarray(loadProp, dtype = np.float))
     outputFile.create_dataset('activityMarkov', data = activityMarkov)
     outputFile.create_dataset('alphas', data = alphas)
     outputFile.close()
-    # TODO: test opening file to make sure structures are maintained
     
 #
 ## main function
