@@ -10,13 +10,16 @@ import h5py as h5
 import numpy as np
 import ConfigParser
 import json
-from sys import argv
+
+import sys
+import traceback
+
 from lib.AlphaTree import AlphaTree
 import lib.TraceFormats as TraceFormats
 import lib.PreProcessing as PreProc
 
 # dictionary for all available trace formats
-traceFormats = {"STL":TraceFormats.STL}
+traceFormats = {"STL":TraceFormats.STL, "OVP":TraceFormats.OVP}
 
 # usage string
 usage_info = "USAGE: python TraceGenerator.py <config_file> \n\
@@ -41,12 +44,10 @@ generator options: \n\
 \tpresent in the \"traceFormats\" dictionary at the top of this file\n"
 
 # TODO:
-# 0. encapsulate preprocessing (get dimesions for everything, pass into constructor for object w/ reusePMF, loadProp, and activityMarkov)
-# 1. Fix error with h5py datasets
-# 2. error handling for incorrect inputs (json errors, file errors, etc)
-# 3.1. Fix deprecation warnings
 # 4. Testing (different dimension alpha sets, all possible bad inputs)
+# 2. Test accuracy with cache model
 # LATER
+# 1. Build structure for reusePMF, loadProp, and acivityMarkov and encapsulate preprocessing 
 # 2. Tool to generate profiles based on a PMF 
 # 3. Provide indication that program is running (% or just a statement)
 def GenerateSyntheticTrace(traceFile, traceLength, appProfiles, weights=[], formatAccess=TraceFormats.STL):
@@ -73,14 +74,23 @@ def GenerateSyntheticTrace(traceFile, traceLength, appProfiles, weights=[], form
         references. Function arguments must be (cycle, accessType, memAddress)"""
 
     # validate inputs
+    if not len(appProfiles):
+        raise ValueError("(in GenerateSyntheticTrace) must input >= 1 app profile")
+        
+    if traceLength <= 0:
+        raise ValueError("(in GenerateSyntheticTrace) traceLength must be > 0)")
+    
     numProfiles = len(appProfiles)
     if numProfiles > 1 and not(len(weights) == 0 or len(weights) == numProfiles):
-        raise ValueError("(in GenerateSyntheticTrace) if len(appProfiles) > 1, \
-            len(weights) must be 0 or len(appProfiles)")
+        raise ValueError("(in GenerateSyntheticTrace) if len(appProfiles) > 1, len(weights) must be 0 or len(appProfiles)")
     
     # create even weights if weights is left as default
     if len(weights) == 0:
         weights = np.ones(numProfiles)
+        
+    for i in xrange(numProfiles):
+        if weights[i] < 0:
+            raise ValueError("(in GenerateSyntheticTrace) weights must be > 0")
         
     # markov model for cycle activity
     activityMarkov = np.zeros((2,2), dtype = np.float)
@@ -96,7 +106,7 @@ def GenerateSyntheticTrace(traceFile, traceLength, appProfiles, weights=[], form
         blockSize[i] = appProfiles[i]['blockSize'][()]
         
         # create weighted sum of activity markov models
-        activityMarkov = np.add(activityMarkov, weights[i] * appProfiles[i]['activityMarkov'])
+        activityMarkov = np.add(activityMarkov, weights[i] * np.asarray(appProfiles[i]['activityMarkov']))
         
         # if current size larger than previous largest rPMF
         if len(appProfiles[i]['reusePMF']) > numReuseDistances:
@@ -128,7 +138,7 @@ def GenerateSyntheticTrace(traceFile, traceLength, appProfiles, weights=[], form
         reusePMF = np.add(reusePMF, temp * weights[i])
         
         # weights sume of load proportions
-        loadProp = np.add(loadProp, appProfiles[i]['loadProp'] * weights[i])
+        loadProp = np.add(loadProp, np.asarray(appProfiles[i]['loadProp']) * weights[i])
     
                 
     # normalize markov model
@@ -209,21 +219,19 @@ def GenerateSyntheticTrace(traceFile, traceLength, appProfiles, weights=[], form
         
         # print access
         formatAccess(traceFile, cycle, accessType, memAddress)
+        
 #
 ## main function
 #
     
 if __name__ == "__main__":
-    # TODO: handle len(appProfiles) with config parser
-    # TODO: add more verbose exception printing and more succinct handling
-
     try:
-        if len(argv) != 2:
+        if len(sys.argv) != 2:
             raise IndexError("Invalid number of arguments. Only config file should be specified")
             
         # setup config parser with default args
         config = ConfigParser.RawConfigParser({'weights': [], 'formatAccess': traceFormats['STL']})
-        config.read(argv[1])
+        config.read(sys.argv[1])
         
         # pull arguments
         traceFile = config.get('generator', 'traceFile')
@@ -231,12 +239,25 @@ if __name__ == "__main__":
         appProfiles = json.loads(config.get('generator', 'appProfiles'))
         weights = json.loads(config.get('generator', 'weights'))
         formatAccess = config.get('generator', 'formatAccess')
-
-        GenerateSyntheticTrace(traceFile, traceLength, appProfiles, weights, formatAccess)
+        
+        GenerateSyntheticTrace(traceFile, traceLength, appProfiles, weights, traceFormats[formatAccess])
     
     except IOError as error:
         print "IOError: " + str(error)
-#    
-#    except ValueError as error:
-#        print "ValueError: " + str(error)
-#    
+        
+    except ValueError as error:
+        tb = sys.exc_info()[2]
+        traceback.print_tb(tb)
+        print "ValueError: ", error
+    
+    except ConfigParser.NoOptionError as error:
+        print "Invalid Args: ", error, "\n"
+        print usage_info
+    
+    except ConfigParser.NoSectionError as error:
+        print "Invalid Config: ", error, "\n"
+        print usage_info
+        
+    except KeyError as error:
+        print "KeyError: ", error
+        print "Invalid application profile: key not found in file"

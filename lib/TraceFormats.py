@@ -18,4 +18,12 @@ def STL(traceFile, cycle, accessType, memAddress):
     else:
         # default data for write is 0xABCD
         traceFile.write("%d: write 0x%x 0xABCD\n" % (cycle, memAddress))
-        
+
+def OVP(traceFile, cycle, accessType, memAddress):
+    """ OVP: prints the memory reference in the format we used with 
+        OVPsim for trace collection"""
+    # handle read
+    if not accessType:
+        traceFile.write("r,0x%x\n" % (memAddress))
+    else:
+        traceFile.write("w,0x%x\n" % (memAddress))
