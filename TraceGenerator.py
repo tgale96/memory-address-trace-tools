@@ -10,6 +10,7 @@ import h5py as h5
 import numpy as np
 import ConfigParser
 import json
+from math import ceil
 
 import sys
 import traceback
@@ -19,7 +20,8 @@ import lib.TraceFormats as TraceFormats
 import lib.PreProcessing as PreProc
 
 # dictionary for all available trace formats
-traceFormats = {"STL":TraceFormats.STL, "OVP":TraceFormats.OVP}
+traceFormats = {"STL":TraceFormats.STL, "OVP":TraceFormats.OVP, \
+    "Din":TraceFormats.Din}
 
 # usage string
 usage_info = "USAGE: python TraceGenerator.py <config_file> \n\
@@ -44,7 +46,7 @@ generator options: \n\
 \tpresent in the \"traceFormats\" dictionary at the top of this file\n"
 
 # TODO:
-# 4. Testing (different dimension alpha sets, all possible bad inputs)
+# 1. Testing (different dimension alpha sets, all possible bad inputs)
 # 2. Test accuracy with cache model
 # LATER
 # 1. Build structure for reusePMF, loadProp, and acivityMarkov and encapsulate preprocessing 
@@ -124,7 +126,10 @@ def GenerateSyntheticTrace(traceFile, traceLength, appProfiles, weights=[], form
     blockSize = blockSize[0] # set blocksize
     
     # create list to hold all alphaTrees
-    alphaForest = np.array([AlphaTree(blockSize) for _ in range(int(numReuseDistances / alphaRatio + 1))])
+    forestSize = int(ceil(numReuseDistances / alphaRatio))
+    alphaForest = np.array([AlphaTree(blockSize) for _ in range(forestSize)])
+    
+    # build the forest
     PreProc.BuildAlphaForest(appProfiles, alphaForest, weights, alphaRatio)
     
     # create weighted PMF & load proportions for each reuse distance

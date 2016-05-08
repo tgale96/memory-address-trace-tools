@@ -7,12 +7,15 @@
     author: Trevor Gale
     date: 3.3.16"""
 
-from lib.AlphaTree import AlphaTree
 import ConfigParser
-from sys import argv
 import numpy as np
 import h5py as h5
 import re
+
+import sys
+import traceback
+
+from lib.AlphaTree import AlphaTree
 
 # usage string
 usage_info = "USAGE: python ApplicationProfiler.py <config_file> \n\
@@ -248,12 +251,12 @@ def GenerateApplicationProfile(traceFile, outputFile, alphaRatio = 0, blockSize 
  
 if __name__ == "__main__":
     try:
-        if len(argv) != 2:
+        if len(sys.argv) != 2:
             raise IndexError("Invalid number of arguments. Only config file should be specified")
             
         # setup config parser with default args
         config = ConfigParser.RawConfigParser({'alphaRatio': 0, 'blockSize': 512, 'regEx': None})
-        config.read(argv[1])
+        config.read(sys.argv[1])
         
         # pull arguments
         traceFile = config.get('profiler', 'traceFile')
@@ -266,24 +269,26 @@ if __name__ == "__main__":
         GenerateApplicationProfile(traceFile, outputFile, alphaRatio, blockSize, regEx)
     
     except IOError as error:
-        print "IOError: " + str(error)
+        print "IOError: ", error
         
     except ValueError as error:
-        print "ValueError: " + str(error)
+        tb = sys.exc_info()[2]
+        traceback.print_tb(tb)
+        print "ValueError: ", error
         
     except re.error as error:
-        print "Invalid regEx: " + str(error)
+        print "Invalid regEx: ", error
         
     except ConfigParser.NoOptionError as error:
-        print "Invalid Args: " + str(error) + "\n"
+        print "Invalid Args: ", error, "\n"
         print usage_info
     
     except ConfigParser.NoSectionError as error:
-        print "Invalid Config: " + str(error) + "\n"
+        print "Invalid Config: ", error, "\n"
         print usage_info
     
     except IndexError as error:
-        print "IndexError: " + str(error) + "\n"
+        print "IndexError: ", error, "\n"
         print usage_info
     
             

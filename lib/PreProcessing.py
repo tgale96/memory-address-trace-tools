@@ -7,6 +7,7 @@
 
 import numpy as np
 
+# TODO: issue mixing things without alphaRatios that are multiples of each other?
 def BuildAlphaForest(appProfiles, alphaForest, weights, alphaRatio):
     """ BuildAlphaForest: combines all alpha values for the input application
         profiles and builds the alphaForest accordingly
@@ -40,13 +41,14 @@ def BuildAlphaForest(appProfiles, alphaForest, weights, alphaRatio):
         alphas = np.zeros(numAlpha, dtype = np.float)
         reuseDistance = i * alphaRatio
 
+
         # generate alpha values 
         for j in xrange(numProfiles):
             if allAlphaRatios[j] == float('Inf'):
                 index = 0
             else:
                 index = reuseDistance/allAlphaRatios[j]
-                
+            
             alphas = np.add(alphas, alphaValues[j][index] \
                * weights[j])
         

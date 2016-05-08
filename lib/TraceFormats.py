@@ -27,3 +27,8 @@ def OVP(traceFile, cycle, accessType, memAddress):
         traceFile.write("r,0x%x\n" % (memAddress))
     else:
         traceFile.write("w,0x%x\n" % (memAddress))
+
+def Din(traceFile, cycle, accessType, memAddress):
+    """ Din: prints the memory reference in the "traditional
+        dinero" format used by the DineroIV cache simulator"""
+    traceFile.write("%d 0x%x\n" % (accessType, memAddress))
