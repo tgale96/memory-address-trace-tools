@@ -7,7 +7,7 @@
 
 import numpy as np
 
-# TODO: issue mixing things without alphaRatios that are multiples of each other?
+# TODO: test mixing things without alphaRatios that are multiples of each other
 def BuildAlphaForest(appProfiles, alphaForest, weights, alphaRatio):
     """ BuildAlphaForest: combines all alpha values for the input application
         profiles and builds the alphaForest accordingly

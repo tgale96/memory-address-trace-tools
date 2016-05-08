@@ -9,13 +9,15 @@
 from math import log
 import numpy as np
 
+# TODO: methods to test
+# ProcessAccess, LoadAlpha, GenerateAccess
 class AlphaTree:
     """ class alphaTree: tree where each edge represents a subset of some
         superset block of memory. Used to track reuse of subsets within 
         supersets & calcualte probabilities of subset reuse for each level
         ("alpha values"). Stores alpha values down to the 4-byte word"""
         
-    def __init__(self, rootSize = 512):
+    def __init__(self, rootSize = 512, bins = 3):
         """ __init__: initializes alphaTree data structures for edges as well
             as global reuse and non-reuse counters for each level in the tree
             
@@ -23,6 +25,8 @@ class AlphaTree:
                 - rootSize: blocksize of biggest superset in the tree i.e the 
                 blocksize of the block represented by the root. Default is 
                 512 bytes
+                - bins: number of bins to divide reuse distances into
+                
             NOTE: reuseCount is stored so that each index corresponds to the
             reuse at that HEIGHT in the tree i.e. index 6 is used to calculate
             \alpha(256, 512) and index 0 is used to calculate \alpha(4, 8)
@@ -34,6 +38,9 @@ class AlphaTree:
         # save rootSize
         self.rootSize = rootSize
         
+        # save number of bins
+        self.bins = bins
+        
          # height of the tree
         self.height = int(log(rootSize / 4, 2))
 
@@ -41,7 +48,7 @@ class AlphaTree:
         self.tree = np.zeros(rootSize / 2 - 1, dtype = np.bool)
         
         # reuse counters for each level
-        self.reuseCount = np.zeros((self.height, 2), dtype = np.float) 
+        self.reuseCount = np.zeros((self.bins, self.height, 2), dtype = np.float) 
     
     def GetChild(self, parent, side):
         """ GetChild: returns the identifier of the desired child in tree
@@ -91,24 +98,31 @@ class AlphaTree:
             args:
                 - blockSize: size of block to find correponding height to"""
         return int(log(blockSize/4, 2) - 1)
-    
-    def ProcessAccess(self, memAddress):
+
+    def ProcessAccess(self, memAddress, reuseDist):
         """ ProcessAccess: handle a memory access by iterating through the
             tree while marking used edges and recording reuse of non-reuse
             at each level
             
             args:
-                - memAddress: address at which the memory access occurred"""
-        self.updateTree(memAddress, 0, self.rootSize) # recursively update tree
-    
-    def updateTree(self, memAddress, nodeID, blockSize):
+                - memAddress: address at which the memory access occurred
+                - reuseDist: reuse distance at which access occured"""
+        # set bin index
+        if reuseDist >= (self.bins - 1):
+            reuseDist = self.bins - 1
+            
+        self.updateTree(memAddress, 0, self.rootSize, reuseDist) # recursively update tree
+        
+    def updateTree(self, memAddress, nodeID, blockSize, reuseDist):
         """ updateTree: recursively updates appropriate edges in the 
             alphaTree
             
             args:
                 - memAddress: address at which the memroy access occurred
                 - nodeID: ID of the current node
-                - blockSize: subset size represented by this level in the tree"""
+                - blockSize: subset size represented by this level in the tree
+                - reuseDist: reuse distance bin in which access occured"""
+                
         # if we reached end of tree        
         if blockSize == 4:
             return
@@ -128,37 +142,57 @@ class AlphaTree:
             
         elif self.tree[usedSubset]:
             # indicate reuse
-            self.reuseCount[height][1] += 1
+            self.reuseCount[reuseDist][height][1] += 1
             
         else:
             # indicate non-reuse
-            self.reuseCount[height][0] += 1
+            self.reuseCount[reuseDist][height][0] += 1
             
             # record which subset was used
             self.tree[usedSubset] = True
             self.tree[sibling] = False
 
         # handle next block        
-        self.updateTree(memAddress, usedSubset, blockSize >> 1)
-    
-    def LoadAlphas(self, alphaValues):
-        """ LoadAlphas: loads array of alpha values into self.alphas """
-        self.reuseCount[:,1] = alphaValues
-        self.reuseCount[:,0] = (1 - alphaValues)
+        self.updateTree(memAddress, usedSubset, blockSize >> 1, reuseDist)
         
-    def GenerateAccess(self):
+    def LoadAlphas(self, alphaValues):
+        """ LoadAlphas: loads array of alpha values into self.alphas 
+        
+            args: 
+                - alphaValues: np array self.bins x self.height array where the i-th 
+                row corresponds to reuse distances of i (i = 2 for rd >= 2),
+                and each row contains the series of alpha values to load into
+                self.reuseCount"""
+        # validate input dimensions
+        if alphaValues.shape != (self.bins, self.height):
+            raise ValueError("(in AlphaTree.LoadAlpha) input matrix must be #bins x height of tree")
+            
+        # for all reuse distance bins
+        for i in xrange(self.bins):
+            self.reuseCount[i, :, 1] = alphaValues[i, :]
+            self.reuseCount[i, :, 0] = (1 - alphaValues[i, :])
+        
+    def GenerateAccess(self, reuseDist):
         """ GenerateAccess: selects 4-byte word to access based on the previous
             accesses and the alpha values stored in self.alphas
             
+            args: 
+                - reuseDist: reuse distance at which access occured
+            
             return: bottom N bits to append to block address"""
-        return self.SelectWord(0, self.rootSize)
+        # set bin index
+        if reuseDist >= (self.bins - 1):
+            reuseDist = self.bins - 1
+            
+        return self.SelectWord(0, self.rootSize, reuseDist)
     
-    def SelectWord(self, nodeID, blockSize):
+    def SelectWord(self, nodeID, blockSize, reuseDist):
         """ SelectWord: iterates through tree to select 4-byte word to access
         
             args:
                 - nodeID: ID of the current node
-                - blockSize: subset size represented by this tree level"""
+                - blockSize: subset size represented by this tree level
+                - reuseDist: reuse distance bin in which the access occurred"""
         # if we reached end of tree        
         if blockSize == 4:
             return 0
@@ -180,11 +214,11 @@ class AlphaTree:
             self.tree[usedSubset] = True
             
             # return appropriate bit
-            return self.SelectWord(usedSubset, blockSize >> 1) \
+            return self.SelectWord(usedSubset, blockSize >> 1, reuseDist) \
                 | (subsetIndex * (blockSize >> 1))
                 
         # else, whether to reuse subset or not
-        reuse = np.random.choice(2, p = self.reuseCount[height,:])
+        reuse = np.random.choice(2, p = self.reuseCount[reuseDist, height,:])
         
         # identify previously accessed child
         prevSubset = leftChild
@@ -205,8 +239,9 @@ class AlphaTree:
             usedSubset = prevSubset
 
         # return appropriate bit
-        return self.SelectWord(usedSubset, blockSize >> 1) \
+        return self.SelectWord(usedSubset, blockSize >> 1, reuseDist) \
             | (subsetIndex * (blockSize >> 1))
+    
         
         
         
