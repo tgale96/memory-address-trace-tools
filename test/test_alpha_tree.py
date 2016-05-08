@@ -198,19 +198,17 @@ def test_smaller_root_size():
     assert np.array_equal(a.reuseCount[reuseDist], sol)
 
 def test_load_alphas():
-    """ tests AlphaTree::LoadAlphas to ensure values are stored 
-        correctly"""
+    """ tests AlphaTree::LoadAlphas to ensure values are stored correctly"""
     # init AlphaTree
     a = AlphaTree()
     
-    test_alphas = np.arange(7, dtype = np.float)
-    test_alphas /= 7.0
-    test_alphas = np.asarray([test_alphas for _ in range(3)])
+    test_alphas = np.zeros((3, 7, 2), dtype = np.float)
+    test_alphas[:, :, 1] = np.arange(7) / 7.0
+    test_alphas[:, :, 0] = 1 - (np.arange(7) / 7.0)
     
     a.LoadAlphas(test_alphas)
     
-    assert np.array_equal(test_alphas, a.reuseCount[:, :,1])
-    assert np.array_equal(1-test_alphas, a.reuseCount[:, :,0])
+    assert np.array_equal(test_alphas, a.reuseCount)
 
 def test_generate_access():
     """ test AlphaTree::GenerateAccess to ensure accesses are tracked
@@ -222,10 +220,10 @@ def test_generate_access():
     reuseDist = 0
     
     # load alpha values
-    test_alphas = np.arange(7, dtype = np.float)
-    test_alphas /= 7.0
-    test_alphas = np.asarray([test_alphas for _ in range(3)])
-    
+    test_alphas = np.zeros((3, 7, 2), dtype = np.float)
+    test_alphas[:, :, 1] = np.arange(7) / 7.0
+    test_alphas[:, :, 0] = 1 - (np.arange(7) / 7.0)
+
     a.LoadAlphas(test_alphas)
     
     # test first access
@@ -265,9 +263,8 @@ def test_generate_access():
     assert test == results
     
     # load different distribution
-    test_alphas = np.ones(7, dtype = np.float)
-    test_alphas /= 2
-    test_alphas = np.asarray([test_alphas for _ in range(3)])
+    test_alphas = np.ones((3, 7, 2), dtype = np.float)
+    test_alphas /= 2.0
     
     a.LoadAlphas(test_alphas)
     
@@ -328,6 +325,70 @@ def test_different_reuse_distances():
     
     # non-reuse for first node, no previous history for rest
     sol[reuseDist, 6, 0] += 1
+    
+    assert np.array_equal(a.reuseCount, sol)
+
+def test_different_num_bins():
+    """ tests an alphaTree with a different number of reuse distance
+        bins"""
+    # init AlphaTree
+    a = AlphaTree(bins = 7)
+    
+    reuseDist = 0
+    memAddr = 0b111111111
+    
+    a.ProcessAccess(memAddr, reuseDist)
+    
+    sol = np.zeros((7, 7, 2), dtype = np.float)
+    
+    # count should be all 0's
+    assert np.array_equal(a.reuseCount, sol)
+    
+    reuseDist = 20
+    
+    a.ProcessAccess(memAddr, reuseDist)
+    
+    # all reused for rd >= 6
+    sol[6, :, 1] += 1
+    
+    # count should be all 0's
+    assert np.array_equal(a.reuseCount, sol)
+    
+    reuseDist = 4
+    
+    a.ProcessAccess(memAddr, reuseDist)
+    
+    # all reused for rd >= 6
+    sol[4, :, 1] += 1
+    
+    # count should be all 0's
+    assert np.array_equal(a.reuseCount, sol)
+    
+    
+def test_normalize_reuse_count():
+    """ tests AlphaTree.NormalizeReuseCount to verify correct noralization"""
+    # init alphaTree    
+    a = AlphaTree()
+    
+    values = np.ones((3, 7, 2), dtype = np.float)
+    
+    a.reuseCount = values
+    
+    a.NormalizeReuseCount()
+
+    sol = np.zeros((3, 7, 2), dtype = np.float)
+    sol[:,:,:] = .5
+    
+    assert np.array_equal(a.reuseCount, sol)
+    
+    values = np.zeros((3, 7, 2), dtype = np.float)
+    
+    a.reuseCount = values
+    
+    a.NormalizeReuseCount()
+    
+    sol = np.zeros((3, 7, 2), dtype = np.float)
+    sol[:, :, 1] = 1.0
     
     assert np.array_equal(a.reuseCount, sol)
 

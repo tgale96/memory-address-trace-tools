@@ -9,8 +9,6 @@
 from math import log
 import numpy as np
 
-# TODO: methods to test
-# ProcessAccess, LoadAlpha, GenerateAccess
 class AlphaTree:
     """ class alphaTree: tree where each edge represents a subset of some
         superset block of memory. Used to track reuse of subsets within 
@@ -108,7 +106,7 @@ class AlphaTree:
                 - memAddress: address at which the memory access occurred
                 - reuseDist: reuse distance at which access occured"""
         # set bin index
-        if reuseDist >= (self.bins - 1):
+        if reuseDist > (self.bins - 1):
             reuseDist = self.bins - 1
             
         self.updateTree(memAddress, 0, self.rootSize, reuseDist) # recursively update tree
@@ -164,13 +162,11 @@ class AlphaTree:
                 and each row contains the series of alpha values to load into
                 self.reuseCount"""
         # validate input dimensions
-        if alphaValues.shape != (self.bins, self.height):
-            raise ValueError("(in AlphaTree.LoadAlpha) input matrix must be #bins x height of tree")
-            
-        # for all reuse distance bins
-        for i in xrange(self.bins):
-            self.reuseCount[i, :, 1] = alphaValues[i, :]
-            self.reuseCount[i, :, 0] = (1 - alphaValues[i, :])
+        if alphaValues.shape != (self.bins, self.height, 2):
+            raise ValueError("(in AlphaTree.LoadAlpha) input matrix must be num_bins x tree_height x 2")
+
+        # store input values        
+        self.reuseCount = alphaValues
         
     def GenerateAccess(self, reuseDist):
         """ GenerateAccess: selects 4-byte word to access based on the previous
@@ -181,7 +177,7 @@ class AlphaTree:
             
             return: bottom N bits to append to block address"""
         # set bin index
-        if reuseDist >= (self.bins - 1):
+        if reuseDist > (self.bins - 1):
             reuseDist = self.bins - 1
             
         return self.SelectWord(0, self.rootSize, reuseDist)
@@ -241,6 +237,23 @@ class AlphaTree:
         # return appropriate bit
         return self.SelectWord(usedSubset, blockSize >> 1, reuseDist) \
             | (subsetIndex * (blockSize >> 1))
+
+    def NormalizeReuseCount(self):
+        """ NormalizeReuseCount: normalizes each row of alpha values so 
+            that that represent probabilities"""
+        # for each bin
+        for i in xrange(self.bins):
+            for j in xrange(self.height):
+                norm = np.linalg.norm(self.reuseCount[i, j, :], 1)
+                
+                if not norm:
+                    # set reuse to 1.0
+                    self.reuseCount[i, j, 1] = 1.0
+                    continue
+                
+                # normalize values
+                self.reuseCount[i, j, :] /= norm
+            
     
         
         

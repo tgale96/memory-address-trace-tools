@@ -26,13 +26,10 @@ profiler options: \n\
 \tthe trace to be analyzed (plain-text)\n\n\
 \t- outputFile: string indicating the name of the file to save the\n\
 \tapplication profile to (automatically appends \".h5\")\n\n\
-\t- alphaRatio: ratio of reuse_distances / alpha tree. This value\n\
-\taffects the number of seperate sets of alpha values that will be\n\
-\tcollected to represent the spatial locality of the application's\n\
-\tmemory reference stream. Smaller values have been shown to produce\n\
-\tmore accurate results, but at the cost of more memory usage and a\n\
-\tlarger characterization. The default value '0' indicates to use 1\n\
-\tset of alpha values for all reuse distances\n\n\
+\t- reuseBins: number of bins to group reuse distances into. For\n\
+\treuseBins = K, the bins each correspond to a single reuse distance\n\
+\texcept for index (K-1), which is for reuse distances >= K-1. Seperate\n\
+\talpha values are calculated for each bin. Default value is 3\n\n\
 \t- blockSize: size of the largest cache block to model(in bytes).\n\
 \tdefault is 512 bytes\n\n\
 \t- regEx: Python regular expression to use to pull memory accesses\n\
@@ -43,7 +40,8 @@ profiler options: \n\
 Example configurations can be found in the \"examples\" directory"
 
 # TODO: fix regEx feature and lsMap (only works if groups are positioned correctly in regex)
-def GenerateApplicationProfile(traceFile, outputFile, alphaRatio = 0, blockSize = 512, regEx = None):
+# TODO: validate working set output and alphas output
+def GenerateApplicationProfile(traceFile, outputFile, reuseBins = 3, blockSize = 512, regEx = None):
     """ GenerateApplicationProfile: this function operates as the main routine
         used to create an application profile from an input address & instruction
         trace
@@ -56,13 +54,10 @@ def GenerateApplicationProfile(traceFile, outputFile, alphaRatio = 0, blockSize 
             application profile to be stored in (automatically append ".h5" to
             filename)
             
-            - alphaRatio: computed as reuse_distances / alpha tree. This value
-            affects the number of seperate sets of alpha values that will be
-            collected to represent the spatial locality of the application's
-            memory reference stream. Smaller values have been shown to produce
-            more accurate results, but at the cost of more memory usage and a
-            larger characterization. The default value '0' indicates to use 1 set 
-            of alpha values for all reuse distances
+            - reuseBins: number of bins to group reuse distances into. For
+            reuseBins = K, the bins each correspond to a single reuse distance
+            except for index (K-1), which is for reuse distances >= K-1. Seperate
+            alpha values are calculated for each bin. Default value is 3
             
             - blockSize: desired size of largest cache block to model. Default
             is 512 bytes
@@ -73,15 +68,11 @@ def GenerateApplicationProfile(traceFile, outputFile, alphaRatio = 0, blockSize 
             address is a 4 byte memory address in hexadecimal format e.g. 
             0x0000fc4e"""
     # validate inputs
-    if alphaRatio < 0:
-        raise ValueError("(in GenerateApplicationProfile) alphaRatio must be non-negative integer")
+    if reuseBins < 1:
+        raise ValueError("(in GenerateApplicationProfile) reuseBins >= 1")
         
     if blockSize % 2 or blockSize < 8:
         raise ValueError("(in GenerateApplicationProfile) blockSize must be power of 2 >= 8")
-
-    # if 1 tree for all reuse distances
-    if not alphaRatio:
-        alphaRatio = float('inf')
         
     # set regular expression
     if not regEx:
@@ -100,7 +91,8 @@ def GenerateApplicationProfile(traceFile, outputFile, alphaRatio = 0, blockSize 
     # probabilty mass function of all reuse distances
     reusePMF = [0]
         
-    # maintains size of the working set
+    # maintains ordered vector of application's working set
+    workingSet = []
     wsSize = 0
     
     # list of load (read) proportions for each reuse distance
@@ -108,7 +100,7 @@ def GenerateApplicationProfile(traceFile, outputFile, alphaRatio = 0, blockSize 
     lsMap = {'r': 0, 'w':1} 
     
     # list of AlphaTree objects to collect alpha values
-    alphaTrees = [AlphaTree(blockSize)]
+    alphaForest = []
     
     with open(traceFile) as file:
         for line in file:
@@ -144,7 +136,6 @@ def GenerateApplicationProfile(traceFile, outputFile, alphaRatio = 0, blockSize 
                 # process reuse distance
                 reusePMF[0] += 1
                 reusePMF.append(0)
-                wsSize += 1
                 
                 # update lruStack
                 lruStack.insert(0, memBlock)
@@ -154,12 +145,13 @@ def GenerateApplicationProfile(traceFile, outputFile, alphaRatio = 0, blockSize 
                 if not accessType: # if load
                     loadProp[0] += 1
                 
-                # create AlphaTree for new reuse distance, if neccessary
-                if alphaRatio != float('inf') and not (wsSize % alphaRatio):
-                    alphaTrees.append(AlphaTree(blockSize))
-                    
-                # update alphaTree
-                alphaTrees[0].ProcessAccess(memAddress)
+                # allocate AlphaTree and process access
+                alphaForest.append(AlphaTree(blockSize, reuseBins))
+                alphaForest[wsSize - 1].ProcessAccess(memAddress, 0)
+                
+                # add block to the working set
+                workingSet.append(memBlock)
+                wsSize += 1
                 
                 continue
             
@@ -174,8 +166,9 @@ def GenerateApplicationProfile(traceFile, outputFile, alphaRatio = 0, blockSize 
             if not accessType: # if load
                 loadProp[reuseDist + 1] += 1
             
-            # update alphaTree
-            alphaTrees[int((reuseDist + 1) / alphaRatio)].ProcessAccess(memAddress)
+            # update appropriate AlphaTree
+            thisTree = workingSet.index(memBlock)
+            alphaForest[thisTree].ProcessAccess(memAddress, reuseDist)
         
     # normalize load proprotions
     for i in xrange(len(loadProp)):
@@ -193,21 +186,22 @@ def GenerateApplicationProfile(traceFile, outputFile, alphaRatio = 0, blockSize 
     activityMarkov[1][:] /= np.linalg.norm(activityMarkov[1][:], 1)
     
     # matrix to store calculated alpha values
-    alphas = np.zeros((len(alphaTrees), alphaTrees[0].height), dtype = np.float)
+    alphas = np.zeros((wsSize, reuseBins, alphaForest[0].height, 2), dtype = np.float)
         
     # normalize and store alpha values
-    for i in xrange(len(alphaTrees)):
-        # avoid division by zero
-        if (alphaTrees[i].reuseCount[0,0] or alphaTrees[i].reuseCount[0,1]):
-            alphas[i, :] = np.true_divide(alphaTrees[i].reuseCount[:, 1], \
-                alphaTrees[i].reuseCount[:, 0] + alphaTrees[i].reuseCount[:, 1])
+    for i in xrange(wsSize):
+        # normalize count to get alpha values
+        alphaForest[i].NormalizeReuseCount()
+        
+        # store in matrx
+        alphas[i] = alphaForest[i].reuseCount
     
     """ structures stored in the profile:
     
         - blockSize: input argument value
         
-        - alphaRatio: input argument value
-        
+        - workingSet: ordered list of the working set of the application
+                
         - reusePMF: probability mass function where the i-th index represents 
         the probability of reuse-distance = (i - 1) occuring. Index 0 indicates
         the probability of a not-previously-accessed block being accessed 
@@ -226,11 +220,10 @@ def GenerateApplicationProfile(traceFile, outputFile, alphaRatio = 0, blockSize 
         given the previous cycle was inactive
         
         - alphas: matrix where the i-th row corresponds the the alpha values
-        for the (alphaRatio * i) up to (alphaRation * (i+1)) reuse distances.
-        These are used to iteratively project accesses to memory blocks into
-        one half of the memory block based on which half (aka subset) of the
-        block was accessed previously. This helps to model the spatial
-        locality of the memory reference stream"""
+        for the ith block in workingSet. These are used to iteratively project 
+        accesses to memory blocks into one half of the memory block based on 
+        which half (aka subset) of the block was accessed previously. This 
+        helps to model the spatial locality of the memory reference stream"""
     
     # append 'h5' file extension
     outputFile = outputFile + ".h5"
@@ -238,7 +231,7 @@ def GenerateApplicationProfile(traceFile, outputFile, alphaRatio = 0, blockSize 
     # save application profile to file
     outputFile = h5.File(outputFile, 'w')
     outputFile.create_dataset('blockSize', data = blockSize, dtype = np.int)
-    outputFile.create_dataset('alphaRatio', data = alphaRatio, dtype = np.float)
+    outputFile.create_dataset('workingSet', data = np.asarray(workingSet, dtype = np.int))
     outputFile.create_dataset('reusePMF', data = np.asarray(reusePMF, dtype = np.float))
     outputFile.create_dataset('loadProp', data = np.asarray(loadProp, dtype = np.float))
     outputFile.create_dataset('activityMarkov', data = activityMarkov)
@@ -255,18 +248,18 @@ if __name__ == "__main__":
             raise IndexError("Invalid number of arguments. Only config file should be specified")
             
         # setup config parser with default args
-        config = ConfigParser.RawConfigParser({'alphaRatio': 0, 'blockSize': 512, 'regEx': None})
+        config = ConfigParser.RawConfigParser({'reuseBins': 3, 'blockSize': 512, 'regEx': None})
         config.read(sys.argv[1])
         
         # pull arguments
         traceFile = config.get('profiler', 'traceFile')
         outputFile = config.get('profiler', 'outputFile')
-        alphaRatio = int(config.get('profiler', 'alphaRatio'))
+        reuseBins = int(config.get('profiler', 'reuseBins'))
         blockSize = int(config.get('profiler', 'blockSize'))
         regEx = config.get('profiler', 'regEx')
         
         # generate the profile
-        GenerateApplicationProfile(traceFile, outputFile, alphaRatio, blockSize, regEx)
+        GenerateApplicationProfile(traceFile, outputFile, reuseBins, blockSize, regEx)
     
     except IOError as error:
         print "IOError: ", error
