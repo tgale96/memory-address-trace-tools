@@ -167,8 +167,8 @@ def GenerateApplicationProfile(traceFile, outputFile, reuseBins = 3, blockSize =
                 loadProp[reuseDist + 1] += 1
             
             # update appropriate AlphaTree
-            thisTree = workingSet.index(memBlock)
-            alphaForest[thisTree].ProcessAccess(memAddress, reuseDist)
+            blockIndex = workingSet.index(memBlock)
+            alphaForest[blockIndex].ProcessAccess(memAddress, reuseDist)
         
     # normalize load proprotions
     for i in xrange(len(loadProp)):
