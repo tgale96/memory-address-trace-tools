@@ -40,7 +40,6 @@ profiler options: \n\
 Example configurations can be found in the \"examples\" directory"
 
 # TODO: fix regEx feature and lsMap (only works if groups are positioned correctly in regex)
-# TODO: validate working set output and alphas output
 def GenerateApplicationProfile(traceFile, outputFile, reuseBins = 3, blockSize = 512, regEx = None):
     """ GenerateApplicationProfile: this function operates as the main routine
         used to create an application profile from an input address & instruction

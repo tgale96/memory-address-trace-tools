@@ -2,8 +2,8 @@
 
 # dataFile, outputFile ways, blockSize, cacheSize, writeAllocate
 ways=4
-blockSize=512
-cacheSize=2048
+blockSize=32
+cacheSize=16384
 writeAllocate=1
 #python ~/Desktop/NUCAR/ADI/Source/ARMCache.py $1 $2 $cacheSize $ways $blockSize $writeAllocate
 

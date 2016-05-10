@@ -47,8 +47,8 @@ generator options: \n\
 \tpresent in the \"traceFormats\" dictionary at the top of this file\n"
 
 # TODO:
+# 0. Add warning if uniqueAddrs will most likely exceed wsSize
 # 1. Test mixing 
-# 2. Test accuracy with cache model
 # LATER
 # 1. Tool to generate profiles based on a PMF 
 # 2. Print runtime generation details & progress
@@ -250,4 +250,3 @@ if __name__ == "__main__":
         
     except KeyError as error:
         print "KeyError: ", error
-        print "Invalid application profile: key not found in file"
