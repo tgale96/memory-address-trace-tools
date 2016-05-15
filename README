@@ -76,3 +76,6 @@ profile based on the "weights" parameter in the TraceGenerator.py config
 file. If no weights are passed in, all application profiles are weighted
 equally.
 
+Citations:
+Jonathan Weinberg - The Chameleon Framework:Practical Solutions for
+Memory Behavior Analysis
