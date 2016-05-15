@@ -1,0 +1,78 @@
+Synthetic Trace Generation Framework
+author: Trevor Gale
+date: 5.14.16
+
+This project is the second iteration of our synthetic trace generation 
+framework. It includes the use of "alpha values"[1] w/ the least recently
+used stack method for modeling both temporal and spatial locality. Other
+additions include a redesigned interface for simplicity and ease-of-use, 
+as well as feature that allow the user more fine control over the range
+of architectures they wish to test on. The rest of this document explains
+1) all files and sub-directories in this project and 2) notable features
+of this software.
+
+This project has two main functionalities.
+1) To create application characterizations (or "profiles") from an 
+address & instruction trace (The "ApplicationProfiler.py" script)
+2) To generate syntethic address traces based on these profiles (the
+"TraceGenerator.py" script)
+
+For more information on the usage of these two tools, please read the 
+rest of this document. The interfaces for the two tools are throuroughly 
+documented, and usage information will be printed if you simply run 
+"python ApplicationProfiler.py" or "python TraceGenerator.py". 
+
+Directory Map:
+TraceTool/
+  ApplicationProfiler.py: script to generate a "profile" for an applications
+address trace. These profiles are saved in HDF5 format for use with in the
+TraceGenerator.py script. Takes in a configuration file that specifies the
+file to read the trace from, the file to save the profile in (automatically
+appends ".h5"), the number of reuse bins, and the size of the largest
+cache block to model. For example configurations see "examples" directory.
+Reuse bins
+  
+  TraceGenerator.py: script to generate a synthetic address trace from 
+an application profile. Takes in a config file that specifies the 
+file to write the trace to, the desired length of the trace, the
+application profile(s) to model, the weights for the applications, and
+the format to print the trace in (Dinero (Din), socket transaction
+language (STL), or OVPsim (OVP).
+
+  examples: directory containing example configuration files for the 
+profiler and trace generator
+
+  lib: folder containing the library of functions used by the profiler
+and generator.
+
+  test: contains tests for library functions
+
+  RunTest.sh: runs all tests in "test" directory 
+
+Notable Features:
+  Blocksize: This parameter for the profiler specifies the largest cache
+block the user would like to model. Synthetic address trace tested on a cache
+with blocks larger than the "BlockSize" parameter used to create the profile
+are not guaranteed to be accurate. Default value is 512 Bytes
+
+  TraceFormat: One can easily add different printing formats to the 
+TraceGenerator.py by defining a new function in lib/TraceFormats.py and
+adding the Function name to the dictionary at the top of "TraceGenerator.py".
+Once added to the dictionary and defined, the generator will pass in the 
+desired fuction as a callback that is used when printing each access. 
+The arguments for the function must be (traceFile, cycle, accessType, memAddress). 
+
+  ReuseBins: In order to increase accuracy, alpha values are collected 
+seperately for different "bins" of reuse distances. With the default value
+of 3, seperate sets of alpha values are calculated for resuse distances of
+0, 1, and >=2. Increasing this value beyond 3 has not been shown to greatly
+increase accuracy, so it is reccomended to leave this value as the default.
+
+  Multiple Application Profiles: In order to alow the user to create
+more customized and unqiue application traces, we have included the ability
+to generate synthetic traces from mixtures of application profiles. We do
+this by creating a weight combination of all features of the application 
+profile based on the "weights" parameter in the TraceGenerator.py config
+file. If no weights are passed in, all application profiles are weighted
+equally.
+
