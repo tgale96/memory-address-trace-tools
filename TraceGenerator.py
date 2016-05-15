@@ -10,12 +10,10 @@ import h5py as h5
 import numpy as np
 import ConfigParser
 import json
-from math import ceil
 
 import sys
 import traceback
 
-from lib.AlphaTree import AlphaTree
 import lib.TraceFormats as TraceFormats
 import lib.PreProcessing as PreProc
 
@@ -47,9 +45,6 @@ generator options: \n\
 \tpresent in the \"traceFormats\" dictionary at the top of this file\n"
 
 # TODO:
-# 0. Add warning if uniqueAddrs will most likely exceed wsSize
-# 1. Test mixing 
-# LATER
 # 1. Tool to generate profiles based on a PMF 
 # 2. Print runtime generation details & progress
 def GenerateSyntheticTrace(traceFile, traceLength, appProfiles, weights=[], formatAccess=TraceFormats.STL):
@@ -74,7 +69,6 @@ def GenerateSyntheticTrace(traceFile, traceLength, appProfiles, weights=[], form
         
         - formatAccess: callback function that is called to print the memory
         references. Function arguments must be (cycle, accessType, memAddress)"""
-
     # validate inputs
     if not len(appProfiles):
         raise ValueError("(in GenerateSyntheticTrace) must input >= 1 app profile")
@@ -122,7 +116,7 @@ def GenerateSyntheticTrace(traceFile, traceLength, appProfiles, weights=[], form
     # create weighted PMF for each reuse distance
     reusePMF = np.zeros(numReuseDistances, dtype = np.float)
     PreProc.BuildReusePMF(appProfiles, weights, reusePMF)
-
+        
     # create load proportions for each reuse distance
     loadProp = np.zeros(numReuseDistances, dtype = np.float)
     PreProc.BuildLoadProp(appProfiles, weights, loadProp)
@@ -250,3 +244,7 @@ if __name__ == "__main__":
         
     except KeyError as error:
         print "KeyError: ", error
+    
+    except IndexError as error:
+        print "IndexError: ", error, "\n"
+        print usage_info

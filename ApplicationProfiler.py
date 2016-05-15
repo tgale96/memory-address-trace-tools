@@ -32,15 +32,9 @@ profiler options: \n\
 \talpha values are calculated for each bin. Default value is 3\n\n\
 \t- blockSize: size of the largest cache block to model(in bytes).\n\
 \tdefault is 512 bytes\n\n\
-\t- regEx: Python regular expression to use to pull memory accesses\n\
-\tthe trace. Must not match instruction lines in trace. Defaults to\n\
-\t<access_type>,<address>. Where access_type is either 'r' or 'w' and\n\
-\taddress is a 4 byte memory address in hexadecimal format e.g.\n\
-\t0x0000fc4e \n\n\
-Example configurations can be found in the \"examples\" directory"
+Example configurations can be found in the \"examples\" directory\n\n"
 
-# TODO: fix regEx feature and lsMap (only works if groups are positioned correctly in regex)
-def GenerateApplicationProfile(traceFile, outputFile, reuseBins = 3, blockSize = 512, regEx = None):
+def GenerateApplicationProfile(traceFile, outputFile, reuseBins = 3, blockSize = 512):
     """ GenerateApplicationProfile: this function operates as the main routine
         used to create an application profile from an input address & instruction
         trace
@@ -59,13 +53,7 @@ def GenerateApplicationProfile(traceFile, outputFile, reuseBins = 3, blockSize =
             alpha values are calculated for each bin. Default value is 3
             
             - blockSize: desired size of largest cache block to model. Default
-            is 512 bytes
-            
-            - regEx: Python regular expression to use to pull memory accesses
-            the trace. Must not match instruction lines in trace. Defaults to
-            <access_type>,<address>. Where access_type is either 'r' or 'w' and
-            address is a 4 byte memory address in hexadecimal format e.g. 
-            0x0000fc4e"""
+            is 512 bytes"""
     # validate inputs
     if reuseBins < 1:
         raise ValueError("(in GenerateApplicationProfile) reuseBins >= 1")
@@ -74,8 +62,7 @@ def GenerateApplicationProfile(traceFile, outputFile, reuseBins = 3, blockSize =
         raise ValueError("(in GenerateApplicationProfile) blockSize must be power of 2 >= 8")
         
     # set regular expression
-    if not regEx:
-        regEx = re.compile("(\D),0x([0-9a-f]+)")
+    regEx = re.compile("(\D),0x([0-9a-f]+)")
         
     # set mask to pull blockAddress
     blockMask = 2**32 - blockSize
@@ -247,7 +234,7 @@ if __name__ == "__main__":
             raise IndexError("Invalid number of arguments. Only config file should be specified")
             
         # setup config parser with default args
-        config = ConfigParser.RawConfigParser({'reuseBins': 3, 'blockSize': 512, 'regEx': None})
+        config = ConfigParser.RawConfigParser({'reuseBins': 3, 'blockSize': 512})
         config.read(sys.argv[1])
         
         # pull arguments
@@ -255,10 +242,9 @@ if __name__ == "__main__":
         outputFile = config.get('profiler', 'outputFile')
         reuseBins = int(config.get('profiler', 'reuseBins'))
         blockSize = int(config.get('profiler', 'blockSize'))
-        regEx = config.get('profiler', 'regEx')
         
         # generate the profile
-        GenerateApplicationProfile(traceFile, outputFile, reuseBins, blockSize, regEx)
+        GenerateApplicationProfile(traceFile, outputFile, reuseBins, blockSize)
     
     except IOError as error:
         print "IOError: ", error
@@ -267,9 +253,6 @@ if __name__ == "__main__":
         tb = sys.exc_info()[2]
         traceback.print_tb(tb)
         print "ValueError: ", error
-        
-    except re.error as error:
-        print "Invalid regEx: ", error
         
     except ConfigParser.NoOptionError as error:
         print "Invalid Args: ", error, "\n"
